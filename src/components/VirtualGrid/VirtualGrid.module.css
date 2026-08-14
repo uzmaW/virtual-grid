@@ -1,78 +1,351 @@
 .container {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
 }
-.controls {
-  padding: 10px;
+
+.container:focus {
+  outline: none;
+}
+
+/* Search Bar */
+.searchBar {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
   background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #dee2e6;
 }
+
 .searchInput {
   flex: 1;
-  padding: 6px 12px;
-  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border: 1px solid #dee2e6;
   border-radius: 4px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
 }
-.stats {
-  padding: 6px 12px;
-  font-size: 0.85rem;
-  color: #666;
-  background: #f8f9fa;
-  border-bottom: 1px solid #e0e0e0;
+
+.searchInput:focus {
+  border-color: #3498db;
 }
+
+.clearSearch {
+  margin-left: -30px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #6c757d;
+  padding: 0 8px;
+}
+
+.clearSearch:hover {
+  color: #343a40;
+}
+
+/* Header */
 .header {
   display: flex;
-  background: #f1f3f5;
-  height: 40px;
-  align-items: center;
-  border-bottom: 2px solid #ddd;
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
   font-weight: 600;
+  color: #212529;
+  user-select: none;
 }
+
 .headerCell {
-  padding: 0 8px;
-  white-space: nowrap;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 12px 10px;
+  border-right: 1px solid #dee2e6;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.headerCell:hover {
+  background: #e9ecef;
+}
+
+.headerCell:last-child {
+  border-right: none;
+}
+
+.headerContent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.headerContent span {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.sortIcon {
+  color: #3498db;
+  font-size: 12px;
+}
+
+/* Filter Input */
+.filterInput {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  right: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  outline: none;
+}
+
+.filterInput:focus {
+  border-color: #3498db;
+}
+
+/* Resize Handle */
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.resizeHandle:hover {
+  background: #3498db;
+}
+
+/* Body */
 .body {
   flex: 1;
   overflow: auto;
 }
+
+/* Row */
 .row {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #f0f0f0;
-  background: white;
+  border-bottom: 1px solid #f1f3f5;
+  transition: background 0.15s;
+  cursor: pointer;
 }
-.row.selected {
-  background: #e3f2fd;
+
+.row:hover {
+  background: #f8f9fa;
 }
+
+.row:focus {
+  outline: none;
+}
+
+.selectedRow {
+  background: #e7f5ff !important;
+}
+
+.focusedRow {
+  outline: 2px solid #3498db;
+  outline-offset: -2px;
+}
+
+.loadingRow {
+  background: #f8f9fa;
+}
+
+/* Cell */
 .cell {
-  padding: 0 8px;
-  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
   overflow: hidden;
   text-overflow: ellipsis;
-  height: 100%;
-  display: flex;
-  align-items: center;
+  white-space: nowrap;
 }
+
 .checkboxCell {
   display: flex;
+  align-items: center;
   justify-content: center;
-  width: 40px !important;
-  min-width: 40px !important;
-  padding: 0;
 }
-.resizeHandle {
-  width: 4px;
+
+/* Skeleton Loading */
+.skeleton {
   height: 20px;
-  background: #ccc;
-  margin-left: 4px;
-  cursor: col-resize;
-  border-radius: 1px;
+  margin: 10px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Loading Bar */
+.loadingBar {
+  height: 3px;
+  background: #f0f0f0;
+  overflow: hidden;
+}
+
+.loadingProgress {
+  height: 100%;
+  background: linear-gradient(90deg, #3498db, #2ecc71, #3498db);
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% { width: 0; margin-left: 0; }
+  50% { width: 50%; margin-left: 25%; }
+  100% { width: 0; margin-left: 100%; }
+}
+
+/* Error Banner */
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: #fee;
+  border-bottom: 1px solid #fcc;
+  color: #c00;
+}
+
+.errorBanner button {
+  padding: 6px 12px;
+  background: #c00;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.errorBanner button:hover {
+  background: #a00;
+}
+
+/* Empty State */
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #6c757d;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+/* Loading Indicator */
+.loadingIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Stats */
+.stats {
+  position: absolute;
+  top: -1000px;
+  left: -1000px;
+  visibility: hidden;
+}
+
+/* Cell Renderers */
+.statusBadge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.progressBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressBarTrack {
+  flex: 1;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.actionButton {
+  padding: 4px 8px;
+  margin-right: 4px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.actionButton:hover {
+  background: #2980b9;
+}
+
+.actionButton.danger {
+  background: #e74c3c;
+}
+
+.actionButton.danger:hover {
+  background: #c0392b;
+}
+
+/* Highlight */
+.highlight {
+  background-color: #fef08a;
+  padding: 0 2px;
+  border-radius: 2px;
 }

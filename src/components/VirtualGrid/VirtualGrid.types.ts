@@ -1,15 +1,35 @@
+import React from 'react';
+
+export interface RowData {
+  [key: string]: any;
+}
+
 export interface ColumnDef {
   key: string;
   title: string;
   width?: number;
   minWidth?: number;
+  maxWidth?: number;
   resizable?: boolean;
   sortable?: boolean;
   filterable?: boolean;
+  editable?: boolean;
+  frozen?: 'left' | 'right' | boolean;
+  // Cell rendering
+  cellRenderer?: (params: { value: any; row: RowData; index: number }) => React.ReactNode;
+  // Simple value formatting
+  valueFormatter?: (value: any, row: RowData) => string;
+  // Dynamic cell styling
+  cellStyle?: (params: { value: any; row: RowData; index: number }) => React.CSSProperties;
+  // Cell className
+  cellClassName?: (params: { value: any; row: RowData; index: number }) => string;
 }
 
-export interface RowData {
-  [key: string]: any;
+export interface VirtualGridRef {
+  refresh: () => Promise<void>;
+  clearCache: () => Promise<void>;
+  scrollToRow: (index: number) => void;
+  getSelectedRows: () => RowData[];
 }
 
 export interface SortModel {
@@ -18,7 +38,7 @@ export interface SortModel {
 }
 
 export interface FilterModel {
-  [field: string]: { type: string; value: any };
+  [field: string]: { type: 'contains' | 'equals' | 'startsWith' | 'endsWith'; value: any };
 }
 
 export interface GridDataParams {
@@ -27,6 +47,7 @@ export interface GridDataParams {
   sortModel?: SortModel[];
   filterModel?: FilterModel;
   searchTerm?: string;
+  signal?: AbortSignal;
 }
 
 export interface DataSource {
@@ -36,13 +57,63 @@ export interface DataSource {
 export interface VirtualGridProps {
   columns: ColumnDef[];
   dataSource: DataSource;
+  // Grid dimensions
   rowHeight?: number;
-  bufferSize?: number;
+  height?: number;
+  width?: number | string;
+  // Caching
   cacheSize?: number;
-  enableVirtualScrolling?: boolean;
+  enableOfflineCache?: boolean;
+  // Data fetching
+  chunkSize?: number;
+  enablePredictiveFetch?: boolean;
   enableInfiniteScroll?: boolean;
+  // Selection
   rowKey?: string;
   selectionMode?: 'none' | 'single' | 'multiple';
-  onRowClick?: (row: RowData) => void;
   onSelectionChange?: (selectedRows: RowData[]) => void;
+  // Events
+  onRowClick?: (row: RowData, index: number) => void;
+  onRowDoubleClick?: (row: RowData, index: number) => void;
+  onCellClick?: (col: ColumnDef, row: RowData, index: number) => void;
+  // Empty/Loading states
+  emptyState?: React.ReactNode;
+  loadingIndicator?: React.ReactNode;
+  // Error handling
+  onError?: (error: Error) => void;
+  // Search
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  // Sorting
+  defaultSortModel?: SortModel[];
+  onSortChange?: (sortModel: SortModel[]) => void;
+  // Filtering
+  onFilterChange?: (filterModel: FilterModel) => void;
+  // Feature flags
+  enableColumnResize?: boolean;
+  enableColumnReorder?: boolean;
+  enableKeyboardNavigation?: boolean;
 }
+
+export type SelectionMode = 'none' | 'single' | 'multiple';
+
+// --- Grid Theme ---
+export interface GridTheme {
+  headerBg?: string;
+  headerColor?: string;
+  rowHoverBg?: string;
+  rowSelectedBg?: string;
+  borderColor?: string;
+  fontFamily?: string;
+  fontSize?: number;
+}
+
+export const defaultTheme: GridTheme = {
+  headerBg: '#f8f9fa',
+  headerColor: '#212529',
+  rowHoverBg: '#f1f3f5',
+  rowSelectedBg: '#e7f5ff',
+  borderColor: '#dee2e6',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  fontSize: 14,
+};
