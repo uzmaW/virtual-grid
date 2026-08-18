@@ -1,8 +1,8 @@
 // @ts-nocheck
 import React, { useState, useCallback, useRef, forwardRef, useImperativeHandle, useEffect, useMemo, useReducer } from 'react';
-import { List } from 'react-window';
+import { FixedSizeList as List } from 'react-window';
 import type { ListProps } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
+import AutoSizer from 'react-virtualized-auto-sizer';
 import styles from './VirtualGrid.module.css';
 import { VirtualGridProps, VirtualGridRef, RowData, ColumnDef, SortModel, FilterModel, defaultTheme, GridTheme } from './VirtualGrid.types';
 import { HybridCache, debounce, throttle } from '../../utils/cache';
@@ -80,7 +80,7 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
   height = 500,
   width = '100%',
   cacheSize = DEFAULT_CACHE_SIZE,
-  enableOfflineCache = true,
+  enableOfflineCache = false,
   chunkSize = DEFAULT_CHUNK_SIZE,
   enablePredictiveFetch = true,
   rowKey = 'id',
@@ -111,6 +111,21 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
   const listRef = useRef<any>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
+  // Stable refs for state used inside fetchRows — avoids recreating debounce wrapper
+  const dataSourceRef = useRef(dataSource);
+  const sortModelRef = useRef(state.sortModel);
+  const filterModelRef = useRef(state.filterModel);
+  const searchTermRef = useRef(state.searchTerm);
+  const onErrorRef = useRef(onError);
+  const cacheNamespaceRef = useRef(columns.map(c => c.key).join(','));
+
+  useEffect(() => { dataSourceRef.current = dataSource; }, [dataSource]);
+  useEffect(() => { sortModelRef.current = state.sortModel; }, [state.sortModel]);
+  useEffect(() => { filterModelRef.current = state.filterModel; }, [state.filterModel]);
+  useEffect(() => { searchTermRef.current = state.searchTerm; }, [state.searchTerm]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { cacheNamespaceRef.current = columns.map(c => c.key).join(','); }, [columns]);
+
   // Selection state
   const [selectedRowsMap, setSelectedRowsMap] = useState<Map<any, RowData>>(new Map());
 
@@ -128,6 +143,9 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
     cacheRef.current = new HybridCache(cacheSize, enableOfflineCache);
   }, [cacheSize, enableOfflineCache]);
 
+  // Stable namespace derived from column keys — prevents cross-page cache contamination
+  const cacheNamespace = useMemo(() => columns.map(c => c.key).join(','), [columns]);
+
   // Initialize column order
   useEffect(() => {
     dispatch({ type: 'REORDER_COLUMNS', payload: columns.map(c => c.key) });
@@ -136,14 +154,15 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
     }
   }, [columns]);
 
-  // Fetch rows with all optimizations
-  const fetchRows = useCallback(
+  // Stable fetchRows — reads live state from refs so the function never changes identity
+  const fetchRowsRef = useRef(
     debounce(async (startRow: number, endRow: number, forceRefresh: boolean = false) => {
       if (!cacheRef.current) return;
 
-      const cacheKey = `${startRow}-${endRow}-${JSON.stringify(state.sortModel)}-${JSON.stringify(state.filterModel)}-${state.searchTerm}`;
+      const ns = cacheNamespaceRef.current;
+      const cacheKey = `${ns}:${startRow}-${endRow}`;
 
-      // Check cache first
+      // Check cache first (only when not forcing refresh)
       if (!forceRefresh) {
         const cached = await cacheRef.current.get(cacheKey);
         if (cached) {
@@ -152,12 +171,12 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
         }
       }
 
-      // Deduplicate requests
+      // Deduplicate in-flight requests
       if (pendingRequestsRef.current.has(cacheKey)) {
         return;
       }
 
-      // Cancel previous request if needed
+      // Skip if identical range is already in flight
       if (previousRequestRef.current?.start === startRow && previousRequestRef.current?.end === endRow) {
         return;
       }
@@ -171,12 +190,12 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
       dispatch({ type: 'SET_ERROR', payload: null });
 
       try {
-        const result = await dataSource.getRows({
+        const result = await dataSourceRef.current.getRows({
           startRow,
           endRow,
-          sortModel: state.sortModel,
-          filterModel: state.filterModel,
-          searchTerm: state.searchTerm,
+          sortModel: sortModelRef.current,
+          filterModel: filterModelRef.current,
+          searchTerm: searchTermRef.current,
           signal: abortControllerRef.current.signal,
         });
 
@@ -192,15 +211,22 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
       } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError') {
           dispatch({ type: 'SET_ERROR', payload: err instanceof Error ? err : new Error(String(err)) });
-          onError?.(err instanceof Error ? err : new Error(String(err)));
+          onErrorRef.current?.(err instanceof Error ? err : new Error(String(err)));
         }
       } finally {
         pendingRequestsRef.current.delete(cacheKey);
         dispatch({ type: 'SET_LOADING', payload: -1 });
         previousRequestRef.current = null;
       }
-    }, 50),
-    [dataSource, state.sortModel, state.filterModel, state.searchTerm, onError]
+    }, 50)
+  );
+
+  // Wrapper so callers don't need to know about ref
+  const fetchRows = useCallback(
+    (startRow: number, endRow: number, forceRefresh?: boolean) => {
+      return fetchRowsRef.current(startRow, endRow, forceRefresh);
+    },
+    []
   );
 
   // Handle row selection
@@ -347,7 +373,7 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
         }
       }
     }, 100),
-    [enablePredictiveFetch, state.totalRows, chunkSize]
+    [enablePredictiveFetch, state.totalRows, chunkSize, fetchRows]
   );
 
   // Handle items rendered - fetch more data
@@ -391,7 +417,7 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
         e.preventDefault();
         if (focusedIndex !== null) {
           const chunkStart = Math.floor(focusedIndex / chunkSize) * chunkSize;
-          const chunk = cacheRef.current ? cacheRef.current.getSync(`${chunkStart}-${chunkStart + chunkSize}`) : null;
+          const chunk = cacheRef.current ? cacheRef.current.getSync(`${cacheNamespaceRef.current}:${chunkStart}-${chunkStart + chunkSize}`) : null;
           const row = chunk?.rows?.[focusedIndex - chunkStart];
           if (row) handleRowSelection(row);
         }
@@ -451,16 +477,53 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
     fetchRows(0, chunkSize);
   }, []);
 
-  // Fetch on sort/filter/search change
+  // Refetch on sort/filter/search change — always invalidate, even when cleared
+  const prevSortRef = useRef<string>('[]');
+  const prevFilterRef = useRef<string>('{}');
+  const prevSearchRef = useRef<string>('');
+
   useEffect(() => {
-    if (state.sortModel || state.filterModel || state.searchTerm) {
+    const sortKey = JSON.stringify(state.sortModel);
+    const filterKey = JSON.stringify(state.filterModel);
+    const searchKey = state.searchTerm;
+
+    // Skip on initial mount (handled by the useEffect above)
+    if (
+      prevSortRef.current === '[]' &&
+      prevFilterRef.current === '{}' &&
+      prevSearchRef.current === '' &&
+      sortKey === '[]' &&
+      filterKey === '{}' &&
+      searchKey === ''
+    ) {
+      prevSortRef.current = sortKey;
+      prevFilterRef.current = filterKey;
+      prevSearchRef.current = searchKey;
+      return;
+    }
+
+    // Detect any actual change
+    if (
+      sortKey !== prevSortRef.current ||
+      filterKey !== prevFilterRef.current ||
+      searchKey !== prevSearchRef.current
+    ) {
+      prevSortRef.current = sortKey;
+      prevFilterRef.current = filterKey;
+      prevSearchRef.current = searchKey;
+
+      // Clear cache and abort in-flight requests, then refetch from page 0
       cacheRef.current?.clear();
+      pendingRequestsRef.current.clear();
+      abortControllerRef.current?.abort();
+      previousRequestRef.current = null;
       fetchRows(0, chunkSize, true);
     }
   }, [state.sortModel, state.filterModel, state.searchTerm]);
 
   // Get ordered columns
   const orderedColumns = useMemo(() => {
+    if (state.columnOrder.length === 0) return columns;
     return state.columnOrder
       .map(key => columns.find(c => c.key === key))
       .filter(Boolean) as ColumnDef[];
@@ -469,7 +532,7 @@ const VirtualGrid = forwardRef<VirtualGridRef, VirtualGridProps>(({
   // Row renderer
   const RowRenderer = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => {
     const chunkStart = Math.floor(index / chunkSize) * chunkSize;
-    const cacheKey = `${chunkStart}-${chunkStart + chunkSize}`;
+    const cacheKey = `${cacheNamespaceRef.current}:${chunkStart}-${chunkStart + chunkSize}`;
     const chunk = cacheRef.current ? cacheRef.current.getSync(cacheKey) : null;
     const rows = chunk?.rows || [];
     const row = rows[index - chunkStart];

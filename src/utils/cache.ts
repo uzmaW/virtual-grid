@@ -216,7 +216,7 @@ export class HybridCache {
 
       const transaction = database.transaction(['metadata'], 'readwrite');
       const store = transaction.objectStore('metadata');
-      store.put({ lastUpdated: timestamp });
+      store.put({ lastUpdated: timestamp }, 'lastUpdated');
     } catch (err) {
       console.error('IndexedDB metadata write error:', err);
     }
@@ -227,11 +227,24 @@ export class HybridCache {
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: Parameters<T>) => Promise<ReturnType<T>> {
   let timeout: ReturnType<typeof setTimeout> | null = null;
-  return (...args: Parameters<T>) => {
+  let resolveReject: { resolve: (value: ReturnType<T>) => void; reject: (reason?: any) => void } | null = null;
+
+  return (...args: Parameters<T>): Promise<ReturnType<T>> => {
     if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
+
+    return new Promise<ReturnType<T>>((resolve, reject) => {
+      resolveReject = { resolve, reject };
+      timeout = setTimeout(async () => {
+        try {
+          const result = await func(...args);
+          resolveReject?.resolve(result);
+        } catch (err) {
+          resolveReject?.reject(err);
+        }
+      }, wait);
+    });
   };
 }
 
